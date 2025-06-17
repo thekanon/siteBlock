@@ -272,7 +272,7 @@ export class SiteTracker {
     remaining -= duration;
 
     if (remaining > 0) {
-      await chrome.storage.local.set({ [key]: { remaining } });
+      await chrome.storage.local.set({ [key]: Date.now() + remaining });
     } else {
       await chrome.storage.local.remove([key]);
     }
