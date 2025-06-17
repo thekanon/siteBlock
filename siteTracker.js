@@ -96,8 +96,9 @@ export class SiteTracker {
     try {
       const domain = this.extractDomain(url);
 
-      // 차단 페이지가 아닌 경우에만 방문 시간 기록 시작
+      // 차단 페이지가 아닌 경우에만 방문 기록
       if (!url.includes("block-page.html")) {
+        await this.recordVisit(domain);
         this.visitStartTime[tabId] = { domain, startTime: Date.now() };
       }
     } catch (error) {
@@ -162,6 +163,9 @@ export class SiteTracker {
         [key]: currentVisits + 1,
       });
 
+      await this.updateSiteStats(domain, 1, 0);
+      await this.updateVisitTracking(domain);
+
     } catch (error) {
     }
   }
@@ -178,6 +182,7 @@ export class SiteTracker {
         [key]: currentTime + duration,
       });
 
+      await this.updateSiteStats(domain, 0, duration);
       await this.checkDailyLimitWarning();
 
     } catch (error) {
@@ -271,6 +276,45 @@ export class SiteTracker {
     } else {
       await chrome.storage.local.remove([key]);
     }
+  }
+
+  async updateSiteStats(domain, visits, time) {
+    const key = `site_stats_${domain}`;
+    const result = await chrome.storage.local.get([key]);
+    const stats = result[key] || { daily: {}, weekly: {}, total: { visits: 0, time: 0 } };
+
+    const today = this.getTodayString();
+    const week = this.getWeekString();
+
+    stats.total.visits += visits;
+    stats.total.time += time;
+
+    if (!stats.daily[today]) {
+      stats.daily[today] = { visits: 0, time: 0 };
+    }
+    stats.daily[today].visits += visits;
+    stats.daily[today].time += time;
+
+    if (!stats.weekly[week]) {
+      stats.weekly[week] = { visits: 0, time: 0 };
+    }
+    stats.weekly[week].visits += visits;
+    stats.weekly[week].time += time;
+
+    await chrome.storage.local.set({ [key]: stats });
+  }
+
+  async updateVisitTracking(domain) {
+    const { visit_tracking = {} } = await chrome.storage.local.get(["visit_tracking"]);
+    visit_tracking[domain] = (visit_tracking[domain] || 0) + 1;
+    await chrome.storage.local.set({ visit_tracking });
+  }
+
+  getWeekString(date = new Date()) {
+    const firstJan = new Date(date.getFullYear(), 0, 1);
+    const days = Math.floor((date - firstJan) / 86400000);
+    const week = Math.ceil((days + firstJan.getDay() + 1) / 7);
+    return `${date.getFullYear()}-W${String(week).padStart(2, "0")}`;
   }
 
   async checkDailyLimitWarning() {

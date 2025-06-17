@@ -37,7 +37,9 @@
     {
       "resources": [
         "block-page.html",
-        "block-page.js"
+        "block-page.js",
+        "stats.html",
+        "stats.js"
       ],
       "matches": [
         "<all_urls>"
