@@ -65,8 +65,8 @@ function allowTemporaryAccess() {
     return;
   }
 
-  // 임시 허용 시간 설정 (5분)
-  const allowInfo = { remaining: 5 * 60 * 1000 };
+  // 임시 허용 시간 설정 (만료 시각 기록)
+  const allowInfo = Date.now() + 5 * 60 * 1000; // 5분 후 만료
 
   // 로컬 스토리지에 임시 허용 정보 저장
   const tempAllowKey = `temp_allow_${domain}`;
