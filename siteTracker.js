@@ -55,6 +55,8 @@ export class SiteTracker {
 
   async handleBeforeNavigation(tabId, url) {
     try {
+      // 기존 방문 종료 처리 (도메인 이동 시 누락 방지)
+      await this.recordVisitEnd(tabId);
       const domain = this.extractDomain(url);
 
       const blockedSites = await this.getBlockedSites();
