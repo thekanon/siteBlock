@@ -1,3 +1,6 @@
+export const TEMP_ALLOW_TIME = 5 * 60 * 1000; // 5분
+export const DAILY_LIMIT_WARNING = 10 * 60 * 1000; // 10분
+
 export class SiteTracker {
   constructor() {
     this.visitStartTime = {};
@@ -64,7 +67,11 @@ export class SiteTracker {
 
         if (isTemporarilyAllowed) {
           // 방문 시작 시간 기록 (임시 허용된 경우)
-          this.visitStartTime[tabId] = { domain: matched, startTime: Date.now() };
+          this.visitStartTime[tabId] = {
+            domain: matched,
+            startTime: Date.now(),
+            tempAllowed: true,
+          };
           return;
         }
 
@@ -97,11 +104,14 @@ export class SiteTracker {
     }
   }
 
-  recordVisitEnd(tabId) {
+  async recordVisitEnd(tabId) {
     if (this.visitStartTime[tabId]) {
-      const { domain, startTime } = this.visitStartTime[tabId];
+      const { domain, startTime, tempAllowed } = this.visitStartTime[tabId];
       const duration = Date.now() - startTime;
       this.recordVisitDuration(domain, duration);
+      if (tempAllowed) {
+        await this.updateTempAllowRemaining(domain, duration);
+      }
       delete this.visitStartTime[tabId];
     }
   }
@@ -168,6 +178,8 @@ export class SiteTracker {
         [key]: currentTime + duration,
       });
 
+      await this.checkDailyLimitWarning();
+
     } catch (error) {
     }
   }
@@ -182,7 +194,7 @@ export class SiteTracker {
 
       return {
         visits: result[visitKey] || 0,
-        time: Math.round((result[timeKey] || 0) / 1000 / 60), // 분 단위로 변환
+        time: Math.floor((result[timeKey] || 0) / 1000 / 60), // 분 단위로 변환
       };
     } catch (error) {
       return { visits: 0, time: 0 };
@@ -193,16 +205,21 @@ export class SiteTracker {
     try {
       const tempAllowKey = `temp_allow_${domain}`;
       const result = await chrome.storage.local.get([tempAllowKey]);
-      const allowUntil = result[tempAllowKey];
+      const data = result[tempAllowKey];
 
-      if (allowUntil && Date.now() < allowUntil) {
-        const remainingMinutes = Math.ceil(
-          (allowUntil - Date.now()) / (1000 * 60)
-        );
-        return true;
-      } else if (allowUntil) {
-        // 시간이 만료된 경우 정리
-        await chrome.storage.local.remove([tempAllowKey]);
+      if (data) {
+        let remaining = 0;
+        if (typeof data === "number") {
+          remaining = data - Date.now();
+        } else if (typeof data.remaining === "number") {
+          remaining = data.remaining;
+        }
+
+        if (remaining > 0) {
+          return true;
+        } else {
+          await chrome.storage.local.remove([tempAllowKey]);
+        }
       }
 
       return false;
@@ -218,8 +235,12 @@ export class SiteTracker {
       const keysToRemove = [];
 
       for (const [key, value] of Object.entries(storage)) {
-        if (key.startsWith("temp_allow_") && value < now) {
-          keysToRemove.push(key);
+        if (key.startsWith("temp_allow_")) {
+          if (typeof value === "number" && value < now) {
+            keysToRemove.push(key);
+          } else if (value && typeof value.remaining === "number" && value.remaining <= 0) {
+            keysToRemove.push(key);
+          }
         }
       }
 
@@ -228,6 +249,53 @@ export class SiteTracker {
       }
     } catch (error) {
     }
+  }
+
+  async updateTempAllowRemaining(domain, duration) {
+    const key = `temp_allow_${domain}`;
+    const result = await chrome.storage.local.get([key]);
+    const data = result[key];
+    if (!data) return;
+
+    let remaining = 0;
+    if (typeof data === "number") {
+      remaining = data - Date.now();
+    } else if (typeof data.remaining === "number") {
+      remaining = data.remaining;
+    }
+
+    remaining -= duration;
+
+    if (remaining > 0) {
+      await chrome.storage.local.set({ [key]: { remaining } });
+    } else {
+      await chrome.storage.local.remove([key]);
+    }
+  }
+
+  async checkDailyLimitWarning() {
+    try {
+      const today = this.getTodayString();
+      const { blockedSites = [] } = await chrome.storage.sync.get(["blockedSites"]);
+      const allData = await chrome.storage.local.get();
+      let total = 0;
+      for (const site of blockedSites) {
+        const timeKey = `time_${site}_${today}`;
+        if (allData[timeKey]) {
+          total += allData[timeKey];
+        }
+      }
+
+      if (total > DAILY_LIMIT_WARNING) {
+        const opt = {
+          type: "basic",
+          title: "사용 시간 경고",
+          message: "오늘 차단 사이트 사용 시간이 10분을 초과했습니다.",
+          requireInteraction: true,
+        };
+        chrome.notifications.create("dailyLimit", opt);
+      }
+    } catch (e) {}
   }
 
   getTodayString() {

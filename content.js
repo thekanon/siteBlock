@@ -48,8 +48,9 @@
       if (matched) {
         baseDomain = matched;
         // 임시 허용 상태 확인
-        checkTemporaryAllow(baseDomain).then((isAllowed) => {
-          if (isAllowed) {
+        checkTemporaryAllow(baseDomain).then((remaining) => {
+          if (remaining > 0) {
+            showTempWarning(baseDomain, remaining);
             return;
           }
 
@@ -74,16 +75,23 @@
       const tempAllowKey = `temp_allow_${domain}`;
 
       chrome.storage.local.get([tempAllowKey], (result) => {
-        const allowUntil = result[tempAllowKey];
+        const data = result[tempAllowKey];
+        if (data) {
+          let remaining = 0;
+          if (typeof data === "number") {
+            remaining = data - Date.now();
+          } else if (typeof data.remaining === "number") {
+            remaining = data.remaining;
+          }
 
-        if (allowUntil && Date.now() < allowUntil) {
-          const remainingMinutes = Math.ceil(
-            (allowUntil - Date.now()) / (1000 * 60)
-          );
-          resolve(true);
-        } else {
-          resolve(false);
+          if (remaining > 0) {
+            resolve(remaining);
+            return;
+          } else {
+            chrome.storage.local.remove([tempAllowKey]);
+          }
         }
+        resolve(0);
       });
     });
   }
@@ -130,6 +138,52 @@
     });
   }
 
+  let warningInterval;
+  function showTempWarning(domain, remainingMs) {
+    if (warningInterval) {
+      clearInterval(warningInterval);
+    }
+    let warningDiv = document.getElementById("siteblock-temp-warning");
+    if (!warningDiv) {
+      warningDiv = document.createElement("div");
+      warningDiv.id = "siteblock-temp-warning";
+      warningDiv.style.cssText =
+        "position:fixed;bottom:10px;right:10px;background:rgba(0,0,0,0.7);color:white;padding:5px 10px;border-radius:3px;z-index:2147483647;font-size:12px;";
+      document.body.appendChild(warningDiv);
+    }
+
+    const update = () => {
+      const key = `temp_allow_${domain}`;
+      chrome.storage.local.get([key], (res) => {
+        const data = res[key];
+        if (!data) {
+          warningDiv.remove();
+          clearInterval(warningInterval);
+          warningInterval = null;
+          return;
+        }
+        let remain = 0;
+        if (typeof data === "number") {
+          remain = data - Date.now();
+        } else if (typeof data.remaining === "number") {
+          remain = data.remaining;
+        }
+        if (remain <= 0) {
+          warningDiv.remove();
+          clearInterval(warningInterval);
+          warningInterval = null;
+          chrome.storage.local.remove([key]);
+          return;
+        }
+        const minutes = Math.ceil(remain / 60000);
+        warningDiv.textContent = `⏰ 임시 허용 남은 시간: ${minutes}분`;
+      });
+    };
+
+    update();
+    warningInterval = setInterval(update, 60000);
+  }
+
   function getTodayStats(domain) {
     return new Promise((resolve) => {
       const today = new Date().toISOString().split("T")[0];
@@ -139,7 +193,7 @@
       chrome.storage.local.get([visitKey, timeKey], (result) => {
         const visits = result[visitKey] || 0;
         const timeMs = result[timeKey] || 0;
-        const timeMinutes = Math.round(timeMs / 1000 / 60);
+        const timeMinutes = Math.floor(timeMs / 1000 / 60);
 
         resolve({ visits, time: timeMinutes });
       });

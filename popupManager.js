@@ -135,16 +135,22 @@ export class PopupManager {
         ]);
         const visits = siteResult[visitKey] || 0;
         const timeMs = siteResult[timeKey] || 0;
-        const timeMinutes = Math.round(timeMs / 1000 / 60);
-        const allowUntil = siteResult[tempAllowKey];
+        const timeMinutes = Math.floor(timeMs / 1000 / 60);
+        const allowData = siteResult[tempAllowKey];
 
         // 임시 허용 상태 확인
         let tempStatus = "";
-        if (allowUntil && Date.now() < allowUntil) {
-          const remainingMinutes = Math.ceil(
-            (allowUntil - Date.now()) / (1000 * 60)
-          );
-          tempStatus = `<br><small style="color: #ff9800;">⚠️ 임시 허용 중 (${remainingMinutes}분 남음)</small>`;
+        if (allowData) {
+          let remaining = 0;
+          if (typeof allowData === "number") {
+            remaining = allowData - Date.now();
+          } else if (typeof allowData.remaining === "number") {
+            remaining = allowData.remaining;
+          }
+          if (remaining > 0) {
+            const remainingMinutes = Math.ceil(remaining / (1000 * 60));
+            tempStatus = `<br><small style="color: #ff9800;">⚠️ 임시 허용 중 (${remainingMinutes}분 남음)</small>`;
+          }
         }
 
         if (visits > 0 || timeMinutes > 0 || tempStatus) {
