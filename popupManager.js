@@ -1,6 +1,7 @@
 export class PopupManager {
   constructor() {
     this.currentDomain = "";
+    this.currentPeriod = "daily";
     this.init();
   }
 
@@ -15,7 +16,7 @@ export class PopupManager {
     try {
       await this.loadCurrentDomain();
       await this.loadBlockedSites();
-      await this.loadTodayStats();
+      await this.loadStats();
       this.bindEvents();
     } catch (error) {
       document.getElementById("current-domain").textContent = "초기화 오류";
@@ -105,77 +106,53 @@ export class PopupManager {
     }
   }
 
-  async loadTodayStats() {
+  async loadStats(period = "daily") {
     try {
-      const today = new Date().toISOString().split("T")[0];
-      const result = await chrome.storage.sync.get(["blockedSites"]);
-      const blockedSites = result.blockedSites || [];
+      this.currentPeriod = period;
 
-      const statsElement = document.getElementById("today-stats");
+      const { visit_tracking = {} } = await chrome.storage.local.get(["visit_tracking"]);
+      const domains = Object.keys(visit_tracking);
+
+      const statsElement = document.getElementById("stats");
       if (!statsElement) return;
 
-      if (blockedSites.length === 0) {
-        statsElement.innerHTML = "차단된 사이트가 없습니다";
+      if (domains.length === 0) {
+        statsElement.innerHTML = "통계가 없습니다";
         return;
       }
 
       let statsHtml = "";
-      let totalVisits = 0;
-      let totalTime = 0;
 
-      for (const site of blockedSites) {
-        const visitKey = `visits_${site}_${today}`;
-        const timeKey = `time_${site}_${today}`;
-        const tempAllowKey = `temp_allow_${site}`;
+      for (const domain of domains) {
+        const key = `site_stats_${domain}`;
+        const res = await chrome.storage.local.get([key]);
+        const data = res[key];
+        if (!data) continue;
 
-        const siteResult = await chrome.storage.local.get([
-          visitKey,
-          timeKey,
-          tempAllowKey,
-        ]);
-        const visits = siteResult[visitKey] || 0;
-        const timeMs = siteResult[timeKey] || 0;
-        const timeMinutes = Math.floor(timeMs / 1000 / 60);
-        const allowData = siteResult[tempAllowKey];
-
-        // 임시 허용 상태 확인
-        let tempStatus = "";
-        if (allowData) {
-          let remaining = 0;
-          if (typeof allowData === "number") {
-            remaining = allowData - Date.now();
-          } else if (typeof allowData.remaining === "number") {
-            remaining = allowData.remaining;
-          }
-          if (remaining > 0) {
-            const remainingMinutes = Math.ceil(remaining / (1000 * 60));
-            tempStatus = `<br><small style="color: #ff9800;">⚠️ 임시 허용 중 (${remainingMinutes}분 남음)</small>`;
-          }
+        let info;
+        if (period === "total") {
+          info = data.total;
+        } else if (period === "weekly") {
+          const week = this.getWeekString();
+          info = data.weekly[week] || { visits: 0, time: 0 };
+        } else {
+          const today = this.getTodayString();
+          info = data.daily[today] || { visits: 0, time: 0 };
         }
 
-        if (visits > 0 || timeMinutes > 0 || tempStatus) {
+        if (info.visits >= 10) {
+          const minutes = Math.floor(info.time / 1000 / 60);
           statsHtml += `
             <div style="margin: 5px 0; padding: 5px; background: rgba(255,255,255,0.1); border-radius: 3px;">
-              <strong>${site}</strong><br>
-              <small>접속: ${visits}회, 시간: ${timeMinutes}분</small>
-              ${tempStatus}
+              <a href="stats.html?site=${domain}" target="_blank" style="color: #fff; text-decoration: underline;">${domain}</a><br>
+              <small>접속: ${info.visits}회, 시간: ${minutes}분</small>
             </div>
           `;
         }
-
-        totalVisits += visits;
-        totalTime += timeMinutes;
       }
 
       if (statsHtml === "") {
-        statsHtml = "오늘 차단된 접속이 없습니다";
-      } else {
-        statsHtml = `
-          <div style="margin-bottom: 10px; font-weight: bold;">
-            총 접속 차단: ${totalVisits}회, 절약된 시간: ${totalTime}분
-          </div>
-          ${statsHtml}
-        `;
+        statsHtml = "표시할 통계가 없습니다";
       }
 
       statsElement.innerHTML = statsHtml;
@@ -229,6 +206,13 @@ export class PopupManager {
         this.toggleDebug();
       });
     }
+
+    const periodSelect = document.getElementById("stats-period");
+    if (periodSelect) {
+      periodSelect.addEventListener("change", (e) => {
+        this.loadStats(e.target.value);
+      });
+    }
   }
 
   async addSite(site) {
@@ -254,7 +238,7 @@ export class PopupManager {
         await chrome.storage.sync.set({ blockedSites });
 
         await this.loadBlockedSites();
-        await this.loadTodayStats();
+        await this.loadStats(this.currentPeriod);
 
         // 성공 메시지 표시
         this.showMessage(
@@ -289,7 +273,7 @@ export class PopupManager {
         await chrome.storage.sync.set({ blockedSites });
 
         await this.loadBlockedSites();
-        await this.loadTodayStats();
+        await this.loadStats(this.currentPeriod);
 
         this.showMessage(
           `${site} 사이트가 차단 목록에서 제거되었습니다.`,
@@ -383,5 +367,17 @@ export class PopupManager {
     } catch (error) {
       debugInfo.innerHTML = `<strong>오류:</strong> ${error.message}`;
     }
+  }
+
+  getTodayString() {
+    const today = new Date();
+    return today.toISOString().split("T")[0];
+  }
+
+  getWeekString(date = new Date()) {
+    const firstJan = new Date(date.getFullYear(), 0, 1);
+    const days = Math.floor((date - firstJan) / 86400000);
+    const week = Math.ceil((days + firstJan.getDay() + 1) / 7);
+    return `${date.getFullYear()}-W${String(week).padStart(2, "0")}`;
   }
 }
