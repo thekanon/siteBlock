@@ -166,8 +166,15 @@
   </div>
 
   <div class="section">
-    <h3>오늘의 통계</h3>
-    <div id="today-stats" class="stats">
+    <h3>통계</h3>
+    <div style="margin-bottom:10px;">
+      <select id="stats-period">
+        <option value="total">전체</option>
+        <option value="daily" selected>일간</option>
+        <option value="weekly">주간</option>
+      </select>
+    </div>
+    <div id="stats" class="stats">
       통계 로딩 중...
     </div>
   </div>
