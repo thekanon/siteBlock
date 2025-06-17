@@ -60,20 +60,22 @@ class SiteTracker {
       const blockedSites = await this.getBlockedSites();
       console.log("Blocked sites:", blockedSites);
 
-      if (blockedSites.includes(domain)) {
+      const matched = this.matchBlockedSite(domain, blockedSites);
+
+      if (matched) {
         // 임시 허용 상태 확인
-        const isTemporarilyAllowed = await this.checkTemporaryAllow(domain);
+        const isTemporarilyAllowed = await this.checkTemporaryAllow(matched);
 
         if (isTemporarilyAllowed) {
           console.log("Site temporarily allowed:", domain);
           // 방문 시작 시간 기록 (임시 허용된 경우)
-          this.visitStartTime[tabId] = { domain, startTime: Date.now() };
+          this.visitStartTime[tabId] = { domain: matched, startTime: Date.now() };
           return;
         }
 
         console.log("Blocking site:", domain);
-        await this.recordVisit(domain);
-        const stats = await this.getTodayStats(domain);
+        await this.recordVisit(matched);
+        const stats = await this.getTodayStats(matched);
 
         // 즉시 차단 페이지로 리다이렉트
         const blockPageUrl = chrome.runtime.getURL(
@@ -130,6 +132,15 @@ class SiteTracker {
     } catch {
       return "";
     }
+  }
+
+  matchBlockedSite(domain, blockedSites) {
+    for (const site of blockedSites) {
+      if (domain === site || domain.endsWith("." + site)) {
+        return site;
+      }
+    }
+    return null;
   }
 
   async getBlockedSites() {

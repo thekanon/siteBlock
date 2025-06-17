@@ -15,6 +15,18 @@
     currentDomain = currentDomain.substring(4);
   }
 
+  // 차단 목록에서 매칭된 도메인 (기본값은 현재 도메인)
+  let baseDomain = currentDomain;
+
+  function matchBlockedSite(domain, blockedSites) {
+    for (const site of blockedSites) {
+      if (domain === site || domain.endsWith("." + site)) {
+        return site;
+      }
+    }
+    return null;
+  }
+
   console.log("Checking domain:", currentDomain);
 
   // 차단된 사이트인지 즉시 확인
@@ -36,9 +48,11 @@
       console.log("Blocked sites from storage:", blockedSites);
       console.log("Current domain:", currentDomain);
 
-      if (blockedSites.includes(currentDomain)) {
+      const matched = matchBlockedSite(currentDomain, blockedSites);
+      if (matched) {
+        baseDomain = matched;
         // 임시 허용 상태 확인
-        checkTemporaryAllow().then((isAllowed) => {
+        checkTemporaryAllow(baseDomain).then((isAllowed) => {
           if (isAllowed) {
             console.log("Site temporarily allowed:", currentDomain);
             return;
@@ -61,9 +75,9 @@
     });
   }
 
-  function checkTemporaryAllow() {
+  function checkTemporaryAllow(domain) {
     return new Promise((resolve) => {
-      const tempAllowKey = `temp_allow_${currentDomain}`;
+      const tempAllowKey = `temp_allow_${domain}`;
 
       chrome.storage.local.get([tempAllowKey], (result) => {
         const allowUntil = result[tempAllowKey];
@@ -87,7 +101,7 @@
     console.log("Blocking current page...");
 
     // 방문 기록
-    recordVisit();
+    recordVisit(baseDomain);
 
     // 페이지 로딩 중단
     try {
@@ -102,7 +116,7 @@
 
   function redirectToBlockPage() {
     // 통계 가져오기
-    getTodayStats().then((stats) => {
+    getTodayStats(baseDomain).then((stats) => {
       const blockPageUrl = chrome.runtime.getURL(
         `block-page.html?domain=${encodeURIComponent(currentDomain)}&visits=${
           stats.visits
@@ -116,24 +130,24 @@
     });
   }
 
-  function recordVisit() {
+  function recordVisit(domain) {
     const today = new Date().toISOString().split("T")[0];
-    const visitKey = `visits_${currentDomain}_${today}`;
+    const visitKey = `visits_${domain}_${today}`;
 
     chrome.storage.local.get([visitKey], (result) => {
       const currentVisits = result[visitKey] || 0;
       chrome.storage.local.set({
         [visitKey]: currentVisits + 1,
       });
-      console.log("Recorded visit for:", currentDomain);
+      console.log("Recorded visit for:", domain);
     });
   }
 
-  function getTodayStats() {
+  function getTodayStats(domain) {
     return new Promise((resolve) => {
       const today = new Date().toISOString().split("T")[0];
-      const visitKey = `visits_${currentDomain}_${today}`;
-      const timeKey = `time_${currentDomain}_${today}`;
+      const visitKey = `visits_${domain}_${today}`;
+      const timeKey = `time_${domain}_${today}`;
 
       chrome.storage.local.get([visitKey, timeKey], (result) => {
         const visits = result[visitKey] || 0;
