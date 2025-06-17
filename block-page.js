@@ -76,11 +76,6 @@ function allowTemporaryAccess() {
       [tempAllowKey]: allowUntil,
     },
     () => {
-      console.log(
-        `Temporary access granted for ${domain} until`,
-        new Date(allowUntil)
-      );
-
       // 원래 사이트로 리다이렉트
       const originalUrl = `https://${domain}`;
       window.location.href = originalUrl;
@@ -123,7 +118,6 @@ function bindEvents() {
 
 // DOM 로드 완료 후 초기화
 document.addEventListener("DOMContentLoaded", () => {
-  console.log("Block page loaded");
 
   // 화면 업데이트
   updateDisplay();

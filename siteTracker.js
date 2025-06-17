@@ -5,7 +5,6 @@ export class SiteTracker {
   }
 
   init() {
-    console.log("SiteTracker initializing...");
 
     // 만료된 임시 허용 정리
     this.cleanupExpiredTempAllows();
@@ -54,10 +53,8 @@ export class SiteTracker {
   async handleBeforeNavigation(tabId, url) {
     try {
       const domain = this.extractDomain(url);
-      console.log("Before navigation to:", domain);
 
       const blockedSites = await this.getBlockedSites();
-      console.log("Blocked sites:", blockedSites);
 
       const matched = this.matchBlockedSite(domain, blockedSites);
 
@@ -66,13 +63,11 @@ export class SiteTracker {
         const isTemporarilyAllowed = await this.checkTemporaryAllow(matched);
 
         if (isTemporarilyAllowed) {
-          console.log("Site temporarily allowed:", domain);
           // 방문 시작 시간 기록 (임시 허용된 경우)
           this.visitStartTime[tabId] = { domain: matched, startTime: Date.now() };
           return;
         }
 
-        console.log("Blocking site:", domain);
         await this.recordVisit(matched);
         const stats = await this.getTodayStats(matched);
 
@@ -82,28 +77,23 @@ export class SiteTracker {
             stats.visits
           }&time=${stats.time}`
         );
-        console.log("Redirecting to:", blockPageUrl);
 
         chrome.tabs.update(tabId, { url: blockPageUrl });
         return;
       }
     } catch (error) {
-      console.error("Before navigation handling error:", error);
     }
   }
 
   async handleNavigation(tabId, url) {
     try {
       const domain = this.extractDomain(url);
-      console.log("Navigation completed to:", domain);
 
       // 차단 페이지가 아닌 경우에만 방문 시간 기록 시작
       if (!url.includes("block-page.html")) {
         this.visitStartTime[tabId] = { domain, startTime: Date.now() };
-        console.log("Started timing for:", domain);
       }
     } catch (error) {
-      console.error("Navigation handling error:", error);
     }
   }
 
@@ -111,7 +101,6 @@ export class SiteTracker {
     if (this.visitStartTime[tabId]) {
       const { domain, startTime } = this.visitStartTime[tabId];
       const duration = Date.now() - startTime;
-      console.log("Recording visit end for:", domain, "Duration:", duration);
       this.recordVisitDuration(domain, duration);
       delete this.visitStartTime[tabId];
     }
@@ -147,7 +136,6 @@ export class SiteTracker {
       const result = await chrome.storage.sync.get(["blockedSites"]);
       return result.blockedSites || [];
     } catch (error) {
-      console.error("Error getting blocked sites:", error);
       return [];
     }
   }
@@ -164,9 +152,7 @@ export class SiteTracker {
         [key]: currentVisits + 1,
       });
 
-      console.log("Recorded visit for:", domain, "Total:", currentVisits + 1);
     } catch (error) {
-      console.error("Error recording visit:", error);
     }
   }
 
@@ -182,9 +168,7 @@ export class SiteTracker {
         [key]: currentTime + duration,
       });
 
-      console.log("Recorded time for:", domain, "Duration:", duration);
     } catch (error) {
-      console.error("Error recording visit duration:", error);
     }
   }
 
@@ -201,7 +185,6 @@ export class SiteTracker {
         time: Math.round((result[timeKey] || 0) / 1000 / 60), // 분 단위로 변환
       };
     } catch (error) {
-      console.error("Error getting today stats:", error);
       return { visits: 0, time: 0 };
     }
   }
@@ -216,19 +199,14 @@ export class SiteTracker {
         const remainingMinutes = Math.ceil(
           (allowUntil - Date.now()) / (1000 * 60)
         );
-        console.log(
-          `Site ${domain} temporarily allowed for ${remainingMinutes} more minutes`
-        );
         return true;
       } else if (allowUntil) {
         // 시간이 만료된 경우 정리
         await chrome.storage.local.remove([tempAllowKey]);
-        console.log(`Temporary allow expired for ${domain}`);
       }
 
       return false;
     } catch (error) {
-      console.error("Error checking temporary allow:", error);
       return false;
     }
   }
@@ -247,10 +225,8 @@ export class SiteTracker {
 
       if (keysToRemove.length > 0) {
         await chrome.storage.local.remove(keysToRemove);
-        console.log("Cleaned up expired temporary allows:", keysToRemove);
       }
     } catch (error) {
-      console.error("Error cleaning up expired temp allows:", error);
     }
   }
 

@@ -5,11 +5,9 @@ export class PopupManager {
   }
 
   async init() {
-    console.log("PopupManager initializing...");
 
     // Chrome API 확인
     if (typeof chrome === "undefined") {
-      console.error("Chrome API not available");
       document.getElementById("current-domain").textContent = "Chrome API 없음";
       return;
     }
@@ -19,9 +17,7 @@ export class PopupManager {
       await this.loadBlockedSites();
       await this.loadTodayStats();
       this.bindEvents();
-      console.log("PopupManager initialized successfully");
     } catch (error) {
-      console.error("PopupManager initialization error:", error);
       document.getElementById("current-domain").textContent = "초기화 오류";
     }
   }
@@ -37,7 +33,6 @@ export class PopupManager {
         active: true,
         currentWindow: true,
       });
-      console.log("Current tab:", tab);
 
       if (
         tab &&
@@ -66,7 +61,6 @@ export class PopupManager {
         }
       }
     } catch (error) {
-      console.error("Error loading current domain:", error);
       this.currentDomain = "";
       document.getElementById("current-domain").textContent = "알 수 없음";
       const addCurrentBtn = document.getElementById("add-current-site");
@@ -108,7 +102,6 @@ export class PopupManager {
         });
       });
     } catch (error) {
-      console.error("Error loading blocked sites:", error);
     }
   }
 
@@ -181,7 +174,6 @@ export class PopupManager {
 
       statsElement.innerHTML = statsHtml;
     } catch (error) {
-      console.error("Error loading today stats:", error);
     }
   }
 
@@ -190,7 +182,6 @@ export class PopupManager {
     const addCurrentBtn = document.getElementById("add-current-site");
     if (addCurrentBtn) {
       addCurrentBtn.addEventListener("click", () => {
-        console.log("Add current site clicked, domain:", this.currentDomain);
         if (this.currentDomain) {
           this.addSite(this.currentDomain);
         } else {
@@ -205,7 +196,6 @@ export class PopupManager {
       addSiteBtn.addEventListener("click", () => {
         const input = document.getElementById("site-input");
         const site = input.value.trim();
-        console.log("Add site clicked, input:", site);
         if (site) {
           this.addSite(site);
           input.value = "";
@@ -249,24 +239,13 @@ export class PopupManager {
         return;
       }
 
-      console.log("Adding site:", site);
 
       const result = await chrome.storage.sync.get(["blockedSites"]);
       const blockedSites = result.blockedSites || [];
-      console.log("Current blocked sites:", blockedSites);
 
       if (!blockedSites.includes(site)) {
         blockedSites.push(site);
         await chrome.storage.sync.set({ blockedSites });
-        console.log("Site added successfully:", site);
-        console.log("Updated blocked sites:", blockedSites);
-
-        // 저장 확인
-        const verification = await chrome.storage.sync.get(["blockedSites"]);
-        console.log(
-          "Verification - sites in storage:",
-          verification.blockedSites
-        );
 
         await this.loadBlockedSites();
         await this.loadTodayStats();
@@ -281,7 +260,6 @@ export class PopupManager {
         try {
           chrome.runtime.sendMessage({ action: "siteAdded", site: site });
         } catch (e) {
-          console.log("Could not send message to background:", e);
         }
       } else {
         this.showMessage(
@@ -290,7 +268,6 @@ export class PopupManager {
         );
       }
     } catch (error) {
-      console.error("Error adding site:", error);
       this.showMessage("사이트 추가 중 오류가 발생했습니다.", "error");
     }
   }
@@ -304,7 +281,6 @@ export class PopupManager {
       if (index > -1) {
         blockedSites.splice(index, 1);
         await chrome.storage.sync.set({ blockedSites });
-        console.log("Site removed:", site);
 
         await this.loadBlockedSites();
         await this.loadTodayStats();
@@ -315,7 +291,6 @@ export class PopupManager {
         );
       }
     } catch (error) {
-      console.error("Error removing site:", error);
       this.showMessage("사이트 제거 중 오류가 발생했습니다.", "error");
     }
   }
