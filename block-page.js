@@ -65,15 +65,15 @@ function allowTemporaryAccess() {
     return;
   }
 
-  // 임시 허용 시간 설정 (10분)
-  const allowUntil = Date.now() + 10 * 60 * 1000; // 10분 후
+  // 임시 허용 시간 설정 (5분)
+  const allowInfo = { remaining: 5 * 60 * 1000 };
 
   // 로컬 스토리지에 임시 허용 정보 저장
   const tempAllowKey = `temp_allow_${domain}`;
 
   chrome.storage.local.set(
     {
-      [tempAllowKey]: allowUntil,
+      [tempAllowKey]: allowInfo,
     },
     () => {
       // 원래 사이트로 리다이렉트
@@ -100,7 +100,7 @@ function bindEvents() {
     allowAccessBtn.addEventListener("click", () => {
       // 확인 대화상자
       const confirmMessage =
-        "정말로 이 사이트에 접속하시겠습니까?\n\n⚠️ 10분 후에 다시 차단됩니다.\n⏰ 이 시간은 오늘의 접속 시간에 포함됩니다.";
+        "정말로 이 사이트에 접속하시겠습니까?\n\n⚠️ 5분 후에 다시 차단됩니다.\n⏰ 이 시간은 오늘의 접속 시간에 포함됩니다.";
 
       if (confirm(confirmMessage)) {
         allowTemporaryAccess();
