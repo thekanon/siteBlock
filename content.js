@@ -2,7 +2,6 @@
 (function () {
   "use strict";
 
-  console.log("Content script loaded for:", window.location.hostname);
 
   // 페이지 로드 시점 기록
   const pageLoadTime = Date.now();
@@ -27,7 +26,6 @@
     return null;
   }
 
-  console.log("Checking domain:", currentDomain);
 
   // 차단된 사이트인지 즉시 확인
   checkBlockedSite();
@@ -45,8 +43,6 @@
   function checkBlockedSite() {
     chrome.storage.sync.get(["blockedSites"], (result) => {
       const blockedSites = result.blockedSites || [];
-      console.log("Blocked sites from storage:", blockedSites);
-      console.log("Current domain:", currentDomain);
 
       const matched = matchBlockedSite(currentDomain, blockedSites);
       if (matched) {
@@ -54,11 +50,9 @@
         // 임시 허용 상태 확인
         checkTemporaryAllow(baseDomain).then((isAllowed) => {
           if (isAllowed) {
-            console.log("Site temporarily allowed:", currentDomain);
             return;
           }
 
-          console.log("Site is blocked!");
           isBlocked = true;
 
           // 타이머 정리
@@ -86,9 +80,6 @@
           const remainingMinutes = Math.ceil(
             (allowUntil - Date.now()) / (1000 * 60)
           );
-          console.log(
-            `Content script: Site ${currentDomain} temporarily allowed for ${remainingMinutes} more minutes`
-          );
           resolve(true);
         } else {
           resolve(false);
@@ -98,7 +89,6 @@
   }
 
   function blockCurrentPage() {
-    console.log("Blocking current page...");
 
     // 방문 기록
     recordVisit(baseDomain);
@@ -107,7 +97,6 @@
     try {
       window.stop();
     } catch (e) {
-      console.log("Could not stop page loading:", e);
     }
 
     // 즉시 차단 페이지로 리다이렉트
@@ -123,7 +112,6 @@
         }&time=${stats.time}`
       );
 
-      console.log("Redirecting to block page:", blockPageUrl);
 
       // 즉시 리다이렉트
       window.location.replace(blockPageUrl);
@@ -139,7 +127,6 @@
       chrome.storage.local.set({
         [visitKey]: currentVisits + 1,
       });
-      console.log("Recorded visit for:", domain);
     });
   }
 
