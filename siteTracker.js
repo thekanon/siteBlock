@@ -4,6 +4,7 @@ export const DAILY_LIMIT_WARNING = 10 * 60 * 1000; // 10분
 export class SiteTracker {
   constructor() {
     this.visitStartTime = {};
+    this.lastActiveTabId = null;
     this.init();
   }
 
@@ -45,11 +46,40 @@ export class SiteTracker {
     // 탭 제거 이벤트 리스너
     chrome.tabs.onRemoved.addListener((tabId) => {
       this.recordVisitEnd(tabId);
+      if (this.lastActiveTabId === tabId) {
+        this.lastActiveTabId = null;
+      }
     });
 
     // 활성 탭 변경 이벤트 리스너
-    chrome.tabs.onActivated.addListener((activeInfo) => {
-      this.recordVisitEnd(activeInfo.tabId);
+    chrome.tabs.onActivated.addListener(async (activeInfo) => {
+      if (this.lastActiveTabId !== null) {
+        await this.recordVisitEnd(this.lastActiveTabId);
+      }
+      this.lastActiveTabId = activeInfo.tabId;
+
+      try {
+        const tab = await chrome.tabs.get(activeInfo.tabId);
+        if (tab.url && !tab.url.includes("block-page.html")) {
+          const domain = this.extractDomain(tab.url);
+          this.visitStartTime[activeInfo.tabId] = {
+            domain,
+            startTime: Date.now(),
+          };
+        }
+      } catch (e) {}
+    });
+
+    // 초기 활성 탭 기록
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      if (tabs && tabs.length > 0) {
+        const tab = tabs[0];
+        this.lastActiveTabId = tab.id;
+        if (tab.url && !tab.url.includes("block-page.html")) {
+          const domain = this.extractDomain(tab.url);
+          this.visitStartTime[tab.id] = { domain, startTime: Date.now() };
+        }
+      }
     });
   }
 
